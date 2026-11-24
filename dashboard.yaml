@@ -1,0 +1,9 @@
+title: Moen Flo
+views:
+  - title: Alerts
+    path: alerts
+    icon: mdi:water-alert
+    cards:
+      - type: custom:flo-alerts-card
+        entity: sensor.flo_active_alerts
+        title: Moen Flo alerts
