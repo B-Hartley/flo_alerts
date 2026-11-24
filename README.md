@@ -16,8 +16,12 @@ Investigate the underlying cause before acknowledging. An alarm type ID is not a
 
 ## Status
 
-Development preview 0.2.0. Live compatibility with the built-in Flo runtime and private aioflo request method is not yet verified. Dashboard entities and bulk acknowledgement are not yet implemented. No account credentials or personal captures are included.
+Development preview 0.3.0. Live compatibility with the built-in Flo runtime and private aioflo request method is not yet verified. Live retrieval was confirmed by the user on 0.2.0; the dashboard and bulk acknowledgement still require live testing. No account credentials or personal captures are included.
 
 ## Development
 
 Run `python -m unittest discover -s tests` and `ruff check .`. See [Home Assistant development guidelines](https://developers.home-assistant.io/docs/development_guidelines/).
+
+## Dashboard
+
+After updating and restarting, check Developer Tools > States for `sensor.flo_active_alerts` (use the actual entity ID if renamed). In Settings > Dashboards > Resources (advanced mode may be needed), add `/flo_alerts/flo-alerts-card.js?v=0.3.0` as a JavaScript module. Create a dashboard and paste the contents of [dashboard.yaml](dashboard.yaml) in its raw configuration editor, or add a manual card with type `custom:flo-alerts-card` and entity `sensor.flo_active_alerts`. The sensor polls every minute. The card requires confirmation and administrator access for acknowledgement; bulk acknowledgement checks the reviewed event IDs against the current alerts. Individual actions acknowledge alarm types, not unique events. No extra frontend plugin is needed.
