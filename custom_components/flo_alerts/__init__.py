@@ -63,6 +63,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         alarm_id = call.data["alarm_id"]
         try:
             async with lock, asyncio.timeout(45):
+                if "event_ids" in call.data:
+                    current = await active_alerts(client, location)
+                    expected = set(call.data["event_ids"])
+                    if expected != {a["event_id"] for a in current if a["alarm_id"] == alarm_id}:
+                        raise ServiceValidationError("Alerts changed; refresh and review")
                 remaining = await acknowledge(client, location, alarm_id)
         except Exception as err:
             raise HomeAssistantError(
@@ -119,7 +124,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     )
     service.async_register_admin_service(
         hass, DOMAIN, "clear_alert", clear_alert,
-        schema=vol.Schema({**base, vol.Required("alarm_id"): vol.All(int, vol.Range(min=1))}),
+        schema=vol.Schema({**base, vol.Required("alarm_id"): vol.All(int, vol.Range(min=1)), vol.Optional("event_ids"): [cv.string]}),
         supports_response=SupportsResponse.OPTIONAL,
     )
     service.async_register_admin_service(
