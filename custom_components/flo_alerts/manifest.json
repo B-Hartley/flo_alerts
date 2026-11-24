@@ -1,0 +1,16 @@
+{
+  "domain": "flo_alerts",
+  "name": "Flo Alerts",
+  "codeowners": [
+    "@B-Hartley"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "flo"
+  ],
+  "documentation": "https://github.com/B-Hartley/flo_alerts",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/B-Hartley/flo_alerts/issues",
+  "version": "0.2.0"
+}
