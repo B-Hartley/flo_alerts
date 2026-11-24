@@ -44,3 +44,22 @@ clear_all_alerts:
       required: true
       selector:
         object:
+    restore_water:
+      name: Restore water supply
+      description: Explicitly request reopening after an investigated automatic shutoff.
+      selector:
+        boolean:
+    valve_entity_id:
+      name: Flo valve
+      selector:
+        entity:
+          domain: switch
+          integration: flo
+    leak_sensor_ids:
+      name: Physical leak sensors
+      description: All selected sensors must report dry before restoration.
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: moisture
+          multiple: true
