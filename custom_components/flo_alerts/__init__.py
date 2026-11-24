@@ -1,10 +1,12 @@
 """Flo Alerts companion integration."""
 
 import asyncio
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_LOCATION, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
@@ -31,6 +33,9 @@ def locations(hass: HomeAssistant) -> dict[str, tuple[Any, list]]:
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Register integration actions."""
+    await hass.http.async_register_static_paths([
+        StaticPathConfig("/flo_alerts/flo-alerts-card.js", str(Path(__file__).parent / "www" / "flo-alerts-card.js"), False),
+    ])
     lock = asyncio.Lock()
 
     def resolve(call: ServiceCall):
