@@ -6,7 +6,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_LOCATION
+from homeassistant.const import CONF_LOCATION, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, service
@@ -72,6 +72,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             *(device.async_request_refresh() for device in devices),
             return_exceptions=True,
         )
+        await refresh_location(location)
         return {
             "location_id": location,
             "alarm_id": alarm_id,
@@ -79,6 +80,37 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             "remaining_count": len(remaining),
             "remaining_alerts": remaining,
         }
+
+    async def refresh_location(location):
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.data[CONF_LOCATION] == location and entry.state.value == "loaded":
+                await entry.runtime_data.async_request_refresh()
+
+    async def refresh(call):
+        location, _, _ = resolve(call)
+        await refresh_location(location)
+
+    async def clear_all(call):
+        location, client, _ = resolve(call)
+        try:
+            async with lock, asyncio.timeout(45):
+                before = await active_alerts(client, location)
+                expected = set(call.data["event_ids"])
+                if expected != {a["event_id"] for a in before}:
+                    raise ServiceValidationError("Alerts changed; refresh and review before acknowledging")
+                if before:
+                    from .api import BASE
+                    await client._request("post", BASE + "/action", json={
+                        "locationId": location,
+                        "alarmIds": sorted({a["alarm_id"] for a in before}),
+                        "snoozeSeconds": 0,
+                    })
+                remaining = await active_alerts(client, location)
+        except Exception as err:
+            raise HomeAssistantError("Unable to verify acknowledgement; refresh before retrying") from err
+        await refresh_location(location)
+        if remaining:
+            raise HomeAssistantError("Some alerts remain outstanding; review the refreshed list")
 
     base = {vol.Optional("location_id"): cv.string}
     service.async_register_admin_service(
@@ -90,6 +122,13 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         schema=vol.Schema({**base, vol.Required("alarm_id"): vol.All(int, vol.Range(min=1))}),
         supports_response=SupportsResponse.OPTIONAL,
     )
+    service.async_register_admin_service(
+        hass, DOMAIN, "refresh", refresh, schema=vol.Schema(base),
+    )
+    service.async_register_admin_service(
+        hass, DOMAIN, "clear_all_alerts", clear_all,
+        schema=vol.Schema({**base, vol.Required("event_ids"): [cv.string]}),
+    )
     return True
 
 
@@ -97,9 +136,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Validate the selected location."""
     if entry.data[CONF_LOCATION] not in locations(hass):
         raise ConfigEntryNotReady("Selected Flo location is not loaded")
+    await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload the location."""
-    return True
+    return await hass.config_entries.async_unload_platforms(entry, [Platform.SENSOR])
