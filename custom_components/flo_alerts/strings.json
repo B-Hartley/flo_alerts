@@ -1,0 +1,17 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Flo Alerts",
+        "description": "Select a location from your existing Moen Flo integration.",
+        "data": {
+          "location": "Flo location"
+        }
+      }
+    },
+    "abort": {
+      "no_flo": "Set up the built-in Flo integration first.",
+      "already_configured": "This location is already configured."
+    }
+  }
+}
