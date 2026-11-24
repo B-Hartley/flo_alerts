@@ -1,17 +1,46 @@
 get_alerts:
+  name: Get alerts
+  description: Retrieve outstanding Flo alerts.
   fields:
     location_id:
+      name: Location ID
       selector:
         text:
 clear_alert:
+  name: Acknowledge alert
+  description: Acknowledge an investigated alarm type without requesting snooze.
   fields:
     location_id:
+      name: Location ID
       selector:
         text:
     alarm_id:
+      name: Alarm type ID
       required: true
       selector:
         number:
           min: 1
           max: 10000
           mode: box
+    event_ids:
+      name: Reviewed event IDs
+      selector:
+        object:
+refresh:
+  name: Refresh alerts
+  description: Refresh the outstanding alert sensor.
+  fields:
+    location_id:
+      selector:
+        text:
+clear_all_alerts:
+  name: Acknowledge all reviewed alerts
+  description: Acknowledge only if the reviewed outstanding event list is unchanged.
+  fields:
+    location_id:
+      selector:
+        text:
+    event_ids:
+      required: true
+      selector:
+        object:
