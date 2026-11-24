@@ -38,6 +38,7 @@ async def active_alerts(client: Any, location_id: str) -> list[dict[str, Any]]:
             seen.add(item["id"])
             result.append({
                 "event_id": item["id"],
+                "device_id": item.get("deviceId"),
                 "alarm_id": alarm["id"],
                 "severity": alarm["severity"],
                 "title": item.get("displayTitle"),
