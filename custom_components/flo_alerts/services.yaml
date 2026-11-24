@@ -1,0 +1,17 @@
+get_alerts:
+  fields:
+    location_id:
+      selector:
+        text:
+clear_alert:
+  fields:
+    location_id:
+      selector:
+        text:
+    alarm_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10000
+          mode: box
