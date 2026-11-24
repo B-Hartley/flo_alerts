@@ -11,7 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_LOCATION, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv, service
+from homeassistant.helpers import config_validation as cv, entity_registry as er, service
 
 from .api import acknowledge, active_alerts
 from .const import DOMAIN
@@ -101,13 +101,40 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         await refresh_location(location)
 
     async def clear_all(call):
-        location, client, _ = resolve(call)
+        location, client, devices = resolve(call)
+        restore = call.data.get('restore_water', False)
+        valve = call.data.get('valve_entity_id')
+        guards = call.data.get('leak_sensor_ids', [])
+
+        def check_restore():
+            if not valve or not guards:
+                raise ServiceValidationError('Valve and physical leak sensors must be specified')
+            if any(not hass.states.is_state(sensor, 'off') for sensor in guards):
+                raise ServiceValidationError('Physical leak detected or sensor unavailable; water remains off')
+            if not hass.states.is_state(valve, 'off'):
+                raise ServiceValidationError('Valve is not confirmed closed')
+
         try:
             async with lock, asyncio.timeout(45):
                 before = await active_alerts(client, location)
                 expected = set(call.data["event_ids"])
                 if expected != {a["event_id"] for a in before}:
                     raise ServiceValidationError("Alerts changed; refresh and review before acknowledging")
+                if restore:
+                    check_restore()
+                    registry = er.async_get(hass)
+                    valve_entry = registry.async_get(valve)
+                    matching = [
+                        device for device in devices
+                        if valve_entry is not None
+                        and valve_entry.platform == "flo"
+                        and valve_entry.unique_id == f"{device.mac_address}_shutoff_valve"
+                    ]
+                    if len(matching) != 1 or not any(
+                        a["alarm_id"] == 83 and a["device_id"] == matching[0].id
+                        for a in before
+                    ):
+                        raise ServiceValidationError("No matching automatic shutoff alert; water remains off")
                 if before:
                     from .api import BASE
                     await client._request("post", BASE + "/action", json={
@@ -116,8 +143,21 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                         "snoozeSeconds": 0,
                     })
                 remaining = await active_alerts(client, location)
+                if restore and not remaining:
+                    check_restore()
+                    await hass.services.async_call(
+                        "switch", "turn_on", {"entity_id": valve},
+                        blocking=True, context=call.context,
+                    )
+        except ServiceValidationError:
+            await refresh_location(location)
+            raise
         except Exception as err:
             raise HomeAssistantError("Unable to verify acknowledgement; refresh before retrying") from err
+        await asyncio.gather(
+            *(device.async_request_refresh() for device in devices),
+            return_exceptions=True,
+        )
         await refresh_location(location)
         if remaining:
             raise HomeAssistantError("Some alerts remain outstanding; review the refreshed list")
@@ -137,7 +177,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     )
     service.async_register_admin_service(
         hass, DOMAIN, "clear_all_alerts", clear_all,
-        schema=vol.Schema({**base, vol.Required("event_ids"): [cv.string]}),
+        schema=vol.Schema({**base, vol.Required("event_ids"): [cv.string],
+                           vol.Optional("restore_water", default=False): cv.boolean,
+                           vol.Optional("valve_entity_id"): cv.entity_id,
+                           vol.Optional("leak_sensor_ids"): [cv.entity_id]}),
     )
     return True
 
